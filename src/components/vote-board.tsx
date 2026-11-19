@@ -6,7 +6,6 @@ import { POINT_OPTIONS, type PointValue } from "@/lib/points";
 import type { PublicSession, TaskHistoryEntry } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 
 type VoteBoardProps = {
   session: PublicSession;
@@ -138,8 +137,7 @@ type OrganizerControlsProps = {
   busy?: boolean;
   onReveal: () => void;
   onHideVotes: () => void;
-  onFinalize: (finalPoints: PointValue, nextTaskName: string) => void;
-  onSkipRound: (taskName: string) => void;
+  onSubmitFinal: (finalPoints: PointValue) => void;
 };
 
 export function OrganizerControls({
@@ -147,8 +145,7 @@ export function OrganizerControls({
   busy,
   onReveal,
   onHideVotes,
-  onFinalize,
-  onSkipRound,
+  onSubmitFinal,
 }: OrganizerControlsProps) {
   const votes = session.participants
     .map((p) => p.vote)
@@ -157,13 +154,11 @@ export function OrganizerControls({
   const consensusLabel = formatMostCommon(votes);
   const singleMode = modes.length === 1 ? modes[0] : null;
   const [finalPoints, setFinalPoints] = useState<PointValue | null>(singleMode);
-  const [nextTaskName, setNextTaskName] = useState("");
 
   useEffect(() => {
     if (session.revealed) {
       const nextModes = mostFrequentVotes(votes);
       setFinalPoints(nextModes.length === 1 ? nextModes[0] : null);
-      setNextTaskName("");
     }
   }, [session.revealed, session.updatedAt]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -181,26 +176,8 @@ export function OrganizerControls({
           >
             Reveal votes
           </Button>
-          <div className="flex flex-col gap-2 sm:flex-row">
-            <Input
-              value={nextTaskName}
-              onChange={(e) => setNextTaskName(e.target.value)}
-              placeholder="Skip to a new task name (optional)"
-              maxLength={120}
-              className="border-white/10 bg-transparent"
-            />
-            <Button
-              type="button"
-              variant="secondary"
-              disabled={busy}
-              onClick={() => onSkipRound(nextTaskName)}
-              className="shrink-0"
-            >
-              Skip round
-            </Button>
-          </div>
           <p className="text-xs text-zinc-500">
-            Skip clears votes without saving this task to history.
+            Use New task above to clear votes without saving this round.
           </p>
         </>
       ) : (
@@ -250,6 +227,7 @@ export function OrganizerControls({
                   "h-11 cursor-pointer rounded-lg border text-base font-semibold transition",
                   "border-white/10 bg-white/[0.03] text-zinc-100",
                   "hover:border-emerald-400/40 hover:bg-emerald-400/10",
+                  "disabled:cursor-not-allowed",
                   finalPoints === value &&
                     "border-emerald-400 bg-emerald-400/15 text-emerald-200",
                 )}
@@ -259,26 +237,17 @@ export function OrganizerControls({
             ))}
           </div>
 
-          <div className="flex flex-col gap-2 sm:flex-row">
-            <Input
-              value={nextTaskName}
-              onChange={(e) => setNextTaskName(e.target.value)}
-              placeholder="Next task name (optional)"
-              maxLength={120}
-              className="border-white/10 bg-transparent"
-            />
-            <Button
-              type="button"
-              disabled={busy || finalPoints === null}
-              onClick={() => {
-                if (finalPoints === null) return;
-                onFinalize(finalPoints, nextTaskName);
-              }}
-              className="shrink-0 bg-emerald-400 text-zinc-950 hover:bg-emerald-300"
-            >
-              Save & next
-            </Button>
-          </div>
+          <Button
+            type="button"
+            disabled={busy || finalPoints === null}
+            onClick={() => {
+              if (finalPoints === null) return;
+              onSubmitFinal(finalPoints);
+            }}
+            className="w-full bg-emerald-400 text-zinc-950 hover:bg-emerald-300"
+          >
+            Submit
+          </Button>
         </div>
       )}
     </div>

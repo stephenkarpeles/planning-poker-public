@@ -95,4 +95,14 @@
   html {
     @apply font-sans;
   }
+  a,
+  button,
+  [role="button"],
+  summary {
+    @apply cursor-pointer;
+  }
+  button:disabled,
+  [aria-disabled="true"] {
+    @apply cursor-not-allowed;
+  }
 }

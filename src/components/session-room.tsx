@@ -1,7 +1,7 @@
 "use client";
 
 import { Check, Pencil, X } from "lucide-react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -11,7 +11,6 @@ import {
   TaskHistory,
   VoteBoard,
 } from "@/components/vote-board";
-import { formatMostCommon, mostFrequentVotes } from "@/lib/consensus";
 import {
   loadDisplayName,
   loadOrganizerToken,
@@ -42,24 +41,9 @@ export function SessionRoom({ sessionId }: SessionRoomProps) {
   const [notFound, setNotFound] = useState(false);
   const [taskDraft, setTaskDraft] = useState("");
   const [editingTitle, setEditingTitle] = useState(false);
-  const [topNextTaskName, setTopNextTaskName] = useState("");
   const titleInputRef = useRef<HTMLInputElement>(null);
 
   const isOrganizer = Boolean(organizerToken);
-  const topModes = useMemo(() => {
-    const votes =
-      session?.participants
-        .map((p) => p.vote)
-        .filter((v): v is PointValue => v !== null) ?? [];
-    return mostFrequentVotes(votes);
-  }, [session?.participants]);
-  const topConsensusLabel = formatMostCommon(
-    session?.participants
-      .map((p) => p.vote)
-      .filter((v): v is PointValue => v !== null) ?? [],
-  );
-  const topSingleMode = topModes.length === 1 ? topModes[0] : null;
-
   const refresh = useCallback(
     async (viewerToken?: string | null) => {
       const token = viewerToken ?? participantToken;
@@ -223,7 +207,7 @@ export function SessionRoom({ sessionId }: SessionRoomProps) {
     }
   }
 
-  async function handleSkipRound(taskName: string) {
+  async function handleSkipRound() {
     if (!organizerToken) return;
     setBusy(true);
     setError(null);
@@ -231,16 +215,15 @@ export function SessionRoom({ sessionId }: SessionRoomProps) {
       const response = await fetch(`/api/sessions/${sessionId}/reset`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ organizerToken, taskName }),
+        body: JSON.stringify({ organizerToken, taskName: "" }),
       });
       const data = await response.json();
       if (!response.ok) {
         throw new Error(data.error || "Could not start new task");
       }
       setSession(data.session);
-      setTaskDraft(data.session.taskName ?? "");
-      setTopNextTaskName("");
-      setEditingTitle(false);
+      setTaskDraft("");
+      setEditingTitle(true);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not start new task");
     } finally {
@@ -248,7 +231,7 @@ export function SessionRoom({ sessionId }: SessionRoomProps) {
     }
   }
 
-  async function handleFinalize(finalPoints: PointValue, nextTaskName: string) {
+  async function handleSubmitFinal(finalPoints: PointValue) {
     if (!organizerToken) return;
     setBusy(true);
     setError(null);
@@ -259,21 +242,18 @@ export function SessionRoom({ sessionId }: SessionRoomProps) {
         body: JSON.stringify({
           organizerToken,
           finalPoints,
-          nextTaskName,
+          nextTaskName: "",
         }),
       });
       const data = await response.json();
       if (!response.ok) {
-        throw new Error(data.error || "Could not save final points");
+        throw new Error(data.error || "Could not submit points");
       }
       setSession(data.session);
-      setTaskDraft(data.session.taskName ?? "");
-      setTopNextTaskName("");
-      setEditingTitle(false);
+      setTaskDraft("");
+      setEditingTitle(true);
     } catch (err) {
-      setError(
-        err instanceof Error ? err.message : "Could not save final points",
-      );
+      setError(err instanceof Error ? err.message : "Could not submit points");
     } finally {
       setBusy(false);
     }
@@ -500,72 +480,37 @@ export function SessionRoom({ sessionId }: SessionRoomProps) {
         </div>
 
         {isOrganizer && (
-          <div className="space-y-2">
-            <div className="flex flex-col gap-2 rounded-xl border border-white/10 bg-white/[0.02] p-3 sm:flex-row sm:items-center">
-              <Input
-                readOnly
-                value={shareUrl}
-                className="border-white/10 bg-transparent text-sm text-zinc-300"
-              />
+          <div className="space-y-3">
+            <div className="space-y-2 rounded-xl border border-white/10 bg-white/[0.02] p-3">
+              <Label htmlFor="share-link" className="text-zinc-400">
+                Share link
+              </Label>
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                <Input
+                  id="share-link"
+                  readOnly
+                  value={shareUrl}
+                  className="border-white/10 bg-transparent text-sm text-zinc-300"
+                />
+                <Button
+                  type="button"
+                  variant="secondary"
+                  onClick={copyLink}
+                  className="shrink-0"
+                >
+                  {copied ? "Copied" : "Copy link"}
+                </Button>
+              </div>
+            </div>
+            {!session.revealed && (
               <Button
                 type="button"
-                variant="secondary"
-                onClick={copyLink}
-                className="shrink-0"
+                disabled={busy}
+                onClick={() => void handleSkipRound()}
+                className="w-full bg-emerald-400 text-zinc-950 hover:bg-emerald-300 sm:w-auto"
               >
-                {copied ? "Copied" : "Copy link"}
+                New task
               </Button>
-            </div>
-            <div className="flex flex-col gap-2 rounded-xl border border-white/10 bg-white/[0.02] p-3 sm:flex-row sm:items-center">
-              <Input
-                value={topNextTaskName}
-                onChange={(e) => setTopNextTaskName(e.target.value)}
-                placeholder={
-                  session.revealed
-                    ? "Next task name (optional)"
-                    : "New task name (optional)"
-                }
-                maxLength={120}
-                className="border-white/10 bg-transparent"
-              />
-              <Button
-                type="button"
-                disabled={
-                  busy || (session.revealed && topSingleMode === null)
-                }
-                onClick={() => {
-                  if (session.revealed) {
-                    if (topSingleMode === null) {
-                      setError(
-                        topModes.length > 1
-                          ? "Votes are tied — pick a final value below"
-                          : "Reveal has no votes to lock yet",
-                      );
-                      return;
-                    }
-                    void handleFinalize(topSingleMode, topNextTaskName);
-                    return;
-                  }
-                  void handleSkipRound(topNextTaskName);
-                }}
-                className="shrink-0 bg-emerald-400 text-zinc-950 hover:bg-emerald-300"
-              >
-                {session.revealed
-                  ? topSingleMode !== null
-                    ? `Save ${topSingleMode} & next`
-                    : "Pick final below"
-                  : "New task"}
-              </Button>
-            </div>
-            {session.revealed && (
-              <p className="text-xs text-zinc-500">
-                {topConsensusLabel
-                  ? `Most Common: ${topConsensusLabel}. `
-                  : ""}
-                {topSingleMode !== null
-                  ? "Top button locks that value and starts the next task."
-                  : "Tied — pick a final value in the controls below."}
-              </p>
             )}
           </div>
         )}
@@ -584,7 +529,7 @@ export function SessionRoom({ sessionId }: SessionRoomProps) {
         {session.revealed && (
           <p className="text-sm text-zinc-400">
             {isOrganizer
-              ? "Votes are visible. Pick the final points, save to history, then start the next task."
+              ? "Votes are visible. Pick the final points and submit, then name the next task."
               : "Votes are visible. Waiting for the organizer to lock agreed points."}
           </p>
         )}
@@ -598,8 +543,7 @@ export function SessionRoom({ sessionId }: SessionRoomProps) {
           busy={busy}
           onReveal={handleReveal}
           onHideVotes={handleHideVotes}
-          onFinalize={handleFinalize}
-          onSkipRound={handleSkipRound}
+          onSubmitFinal={handleSubmitFinal}
         />
       )}
 
