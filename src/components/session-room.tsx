@@ -107,7 +107,6 @@ export function SessionRoom({ sessionId }: SessionRoomProps) {
   }, [refresh, sessionId]);
 
   useEffect(() => {
-    if (!participantToken) return;
     const timer = window.setInterval(() => {
       void refresh(participantToken).catch(() => undefined);
     }, 1500);
@@ -345,8 +344,8 @@ export function SessionRoom({ sessionId }: SessionRoomProps) {
 
   if (!participantToken) {
     return (
-      <div className="mx-auto flex w-full max-w-md flex-col gap-8 px-4 py-16">
-        <div>
+      <div className="mx-auto flex w-full max-w-2xl flex-col gap-8 px-4 py-16">
+        <div className="max-w-md">
           <p className="text-sm uppercase tracking-[0.16em] text-emerald-400/80">
             Planning Poker
           </p>
@@ -354,10 +353,14 @@ export function SessionRoom({ sessionId }: SessionRoomProps) {
             Join {session.organizerName}&apos;s session
           </h1>
           <p className="mt-2 text-zinc-400">
-            Enter your name to start voting on story points.
+            Enter your name to start voting on{" "}
+            <span className="text-zinc-200">
+              {session.taskName || "the current task"}
+            </span>
+            .
           </p>
         </div>
-        <form onSubmit={handleJoin} className="space-y-5">
+        <form onSubmit={handleJoin} className="max-w-md space-y-5">
           <div className="space-y-2">
             <Label htmlFor="join-name" className="text-zinc-300">
               Your name
@@ -381,6 +384,7 @@ export function SessionRoom({ sessionId }: SessionRoomProps) {
             {busy ? "Joining…" : "Join session"}
           </Button>
         </form>
+        <TaskHistory history={session.history ?? []} />
       </div>
     );
   }
@@ -509,8 +513,9 @@ export function SessionRoom({ sessionId }: SessionRoomProps) {
         />
         {session.revealed && (
           <p className="text-sm text-zinc-400">
-            Votes are visible. Organizer picks the final points, then saves to
-            history and starts the next task.
+            {isOrganizer
+              ? "Votes are visible. Pick the final points, save to history, then start the next task."
+              : "Votes are visible. Waiting for the organizer to lock agreed points."}
           </p>
         )}
       </section>

@@ -280,16 +280,27 @@ type TaskHistoryProps = {
 };
 
 export function TaskHistory({ history }: TaskHistoryProps) {
-  if (!history.length) return null;
+  if (!history.length) {
+    return (
+      <section className="space-y-2 rounded-xl border border-dashed border-white/10 px-4 py-5">
+        <h2 className="text-sm font-medium uppercase tracking-[0.14em] text-zinc-500">
+          Session history
+        </h2>
+        <p className="text-sm text-zinc-500">
+          Agreed points will show up here as tasks are finalized.
+        </p>
+      </section>
+    );
+  }
 
   return (
     <section className="space-y-3">
       <div>
         <h2 className="text-sm font-medium uppercase tracking-[0.14em] text-zinc-500">
-          Completed tasks
+          Session history
         </h2>
         <p className="mt-1 text-sm text-zinc-400">
-          Final points saved for this session
+          Agreed points for completed tasks
         </p>
       </div>
       <ul className="divide-y divide-white/8 rounded-xl border border-white/10 bg-white/[0.02]">
@@ -304,9 +315,14 @@ export function TaskHistory({ history }: TaskHistoryProps) {
                 {new Date(entry.decidedAt).toLocaleString()}
               </p>
             </div>
-            <span className="inline-flex h-9 min-w-9 items-center justify-center rounded-lg bg-emerald-400/15 px-2 text-sm font-semibold text-emerald-200">
-              {entry.finalPoints}
-            </span>
+            <div className="shrink-0 text-right">
+              <p className="text-[10px] uppercase tracking-[0.12em] text-zinc-500">
+                Agreed
+              </p>
+              <span className="inline-flex h-9 min-w-9 items-center justify-center rounded-lg bg-emerald-400/15 px-2 text-sm font-semibold text-emerald-200">
+                {entry.finalPoints}
+              </span>
+            </div>
           </li>
         ))}
       </ul>
