@@ -1,22 +1,24 @@
 import type { PointValue } from "./points";
 
-/** Returns the mode among Fibonacci options; ties break toward the lower value. */
-export function mostFrequentVote(votes: PointValue[]): PointValue | null {
-  if (votes.length === 0) return null;
+/** Returns every point value tied for the highest frequency, sorted ascending. */
+export function mostFrequentVotes(votes: PointValue[]): PointValue[] {
+  if (votes.length === 0) return [];
   const counts = new Map<PointValue, number>();
   for (const vote of votes) {
     counts.set(vote, (counts.get(vote) ?? 0) + 1);
   }
-  let best: PointValue | null = null;
-  let bestCount = -1;
-  for (const [vote, count] of counts) {
-    if (
-      count > bestCount ||
-      (count === bestCount && best !== null && vote < best)
-    ) {
-      best = vote;
-      bestCount = count;
-    }
+  let bestCount = 0;
+  for (const count of counts.values()) {
+    if (count > bestCount) bestCount = count;
   }
-  return best;
+  return [...counts.entries()]
+    .filter(([, count]) => count === bestCount)
+    .map(([vote]) => vote)
+    .sort((a, b) => a - b);
+}
+
+export function formatMostCommon(votes: PointValue[]): string | null {
+  const modes = mostFrequentVotes(votes);
+  if (modes.length === 0) return null;
+  return modes.join(", ");
 }

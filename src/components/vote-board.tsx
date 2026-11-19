@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { mostFrequentVote } from "@/lib/consensus";
+import { formatMostCommon, mostFrequentVotes } from "@/lib/consensus";
 import { POINT_OPTIONS, type PointValue } from "@/lib/points";
 import type { PublicSession, TaskHistoryEntry } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -65,7 +65,7 @@ export function ParticipantList({
         .map((p) => p.vote)
         .filter((v): v is PointValue => v !== null)
     : [];
-  const consensus = mostFrequentVote(votes);
+  const consensusLabel = formatMostCommon(votes);
 
   return (
     <div className="space-y-4">
@@ -79,10 +79,12 @@ export function ParticipantList({
             {session.participants.length} voted
           </p>
         </div>
-        {session.revealed && consensus !== null && (
+        {session.revealed && consensusLabel !== null && (
           <p className="animate-in fade-in text-sm text-zinc-300">
-            Most common{" "}
-            <span className="font-semibold text-emerald-300">{consensus}</span>
+            Most Common:{" "}
+            <span className="font-semibold text-emerald-300">
+              {consensusLabel}
+            </span>
           </p>
         )}
       </div>
@@ -151,13 +153,16 @@ export function OrganizerControls({
   const votes = session.participants
     .map((p) => p.vote)
     .filter((v): v is PointValue => v !== null);
-  const consensus = mostFrequentVote(votes);
-  const [finalPoints, setFinalPoints] = useState<PointValue | null>(consensus);
+  const modes = mostFrequentVotes(votes);
+  const consensusLabel = formatMostCommon(votes);
+  const singleMode = modes.length === 1 ? modes[0] : null;
+  const [finalPoints, setFinalPoints] = useState<PointValue | null>(singleMode);
   const [nextTaskName, setNextTaskName] = useState("");
 
   useEffect(() => {
     if (session.revealed) {
-      setFinalPoints(mostFrequentVote(votes));
+      const nextModes = mostFrequentVotes(votes);
+      setFinalPoints(nextModes.length === 1 ? nextModes[0] : null);
       setNextTaskName("");
     }
   }, [session.revealed, session.updatedAt]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -216,16 +221,21 @@ export function OrganizerControls({
                 {session.taskName || "Untitled task"}
               </span>
             </p>
-            {consensus !== null && (
+            {singleMode !== null && (
               <Button
                 type="button"
                 variant="secondary"
                 disabled={busy}
-                onClick={() => setFinalPoints(consensus)}
+                onClick={() => setFinalPoints(singleMode)}
                 className="mt-2"
               >
-                Use most common ({consensus})
+                Use most common ({singleMode})
               </Button>
+            )}
+            {modes.length > 1 && (
+              <p className="mt-2 text-xs text-zinc-500">
+                Tie — Most Common: {consensusLabel}. Pick one below.
+              </p>
             )}
           </div>
 

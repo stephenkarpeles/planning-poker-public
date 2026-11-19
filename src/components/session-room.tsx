@@ -11,7 +11,7 @@ import {
   TaskHistory,
   VoteBoard,
 } from "@/components/vote-board";
-import { mostFrequentVote } from "@/lib/consensus";
+import { formatMostCommon, mostFrequentVotes } from "@/lib/consensus";
 import {
   loadDisplayName,
   loadOrganizerToken,
@@ -46,13 +46,19 @@ export function SessionRoom({ sessionId }: SessionRoomProps) {
   const titleInputRef = useRef<HTMLInputElement>(null);
 
   const isOrganizer = Boolean(organizerToken);
-  const topConsensus = useMemo(() => {
+  const topModes = useMemo(() => {
     const votes =
       session?.participants
         .map((p) => p.vote)
         .filter((v): v is PointValue => v !== null) ?? [];
-    return mostFrequentVote(votes);
+    return mostFrequentVotes(votes);
   }, [session?.participants]);
+  const topConsensusLabel = formatMostCommon(
+    session?.participants
+      .map((p) => p.vote)
+      .filter((v): v is PointValue => v !== null) ?? [],
+  );
+  const topSingleMode = topModes.length === 1 ? topModes[0] : null;
 
   const refresh = useCallback(
     async (viewerToken?: string | null) => {
@@ -524,14 +530,20 @@ export function SessionRoom({ sessionId }: SessionRoomProps) {
               />
               <Button
                 type="button"
-                disabled={busy || (session.revealed && topConsensus === null)}
+                disabled={
+                  busy || (session.revealed && topSingleMode === null)
+                }
                 onClick={() => {
                   if (session.revealed) {
-                    if (topConsensus === null) {
-                      setError("Reveal has no votes to lock yet");
+                    if (topSingleMode === null) {
+                      setError(
+                        topModes.length > 1
+                          ? "Votes are tied — pick a final value below"
+                          : "Reveal has no votes to lock yet",
+                      );
                       return;
                     }
-                    void handleFinalize(topConsensus, topNextTaskName);
+                    void handleFinalize(topSingleMode, topNextTaskName);
                     return;
                   }
                   void handleSkipRound(topNextTaskName);
@@ -539,15 +551,20 @@ export function SessionRoom({ sessionId }: SessionRoomProps) {
                 className="shrink-0 bg-emerald-400 text-zinc-950 hover:bg-emerald-300"
               >
                 {session.revealed
-                  ? `Save ${topConsensus ?? "—"} & next`
+                  ? topSingleMode !== null
+                    ? `Save ${topSingleMode} & next`
+                    : "Pick final below"
                   : "New task"}
               </Button>
             </div>
             {session.revealed && (
               <p className="text-xs text-zinc-500">
-                Top button locks the most common vote (
-                {topConsensus ?? "none"}) and starts the next task. Use the
-                controls below to pick a different final value.
+                {topConsensusLabel
+                  ? `Most Common: ${topConsensusLabel}. `
+                  : ""}
+                {topSingleMode !== null
+                  ? "Top button locks that value and starts the next task."
+                  : "Tied — pick a final value in the controls below."}
               </p>
             )}
           </div>
