@@ -34,6 +34,7 @@ export function SessionRoom({ sessionId }: SessionRoomProps) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notFound, setNotFound] = useState(false);
+  const [taskDraft, setTaskDraft] = useState("");
 
   const refresh = useCallback(
     async (viewerId?: string | null) => {
@@ -51,7 +52,19 @@ export function SessionRoom({ sessionId }: SessionRoomProps) {
       if (!response.ok) {
         throw new Error(data.error || "Failed to load session");
       }
-      setSession(data.session);
+      setSession((prev) => {
+        const next = data.session as PublicSession;
+        const editingTitle =
+          typeof document !== "undefined" &&
+          document.activeElement?.getAttribute("aria-label") === "Task name";
+        if (!editingTitle && prev?.taskName !== next.taskName) {
+          setTaskDraft(next.taskName ?? "");
+        }
+        if (!prev) {
+          setTaskDraft(next.taskName ?? "");
+        }
+        return next;
+      });
       setNotFound(false);
       return data.session as PublicSession;
     },
@@ -176,8 +189,36 @@ export function SessionRoom({ sessionId }: SessionRoomProps) {
         throw new Error(data.error || "Could not start new task");
       }
       setSession(data.session);
+      setTaskDraft(data.session.taskName ?? "");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not start new task");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function saveTaskTitle() {
+    if (!organizerToken || !session) return;
+    const next = taskDraft.trim();
+    const current = session.taskName.trim();
+    if (next === current) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const response = await fetch(`/api/sessions/${sessionId}/task`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ organizerToken, taskName: next }),
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error || "Could not rename task");
+      }
+      setSession(data.session);
+      setTaskDraft(data.session.taskName ?? "");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not rename task");
+      setTaskDraft(session.taskName);
     } finally {
       setBusy(false);
     }
@@ -269,9 +310,27 @@ export function SessionRoom({ sessionId }: SessionRoomProps) {
             <p className="text-sm uppercase tracking-[0.16em] text-emerald-400/80">
               Planning Poker
             </p>
-            <h1 className="mt-2 text-3xl font-semibold tracking-tight text-zinc-50">
-              {session.taskName || "Untitled task"}
-            </h1>
+            {isOrganizer ? (
+              <Input
+                value={taskDraft}
+                onChange={(e) => setTaskDraft(e.target.value)}
+                onBlur={() => void saveTaskTitle()}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.currentTarget.blur();
+                  }
+                }}
+                placeholder="Untitled task"
+                maxLength={120}
+                disabled={busy}
+                aria-label="Task name"
+                className="mt-2 h-auto border-transparent bg-transparent px-0 text-3xl font-semibold tracking-tight text-zinc-50 shadow-none placeholder:text-zinc-500 focus-visible:border-emerald-400/40 focus-visible:ring-emerald-400/20"
+              />
+            ) : (
+              <h1 className="mt-2 text-3xl font-semibold tracking-tight text-zinc-50">
+                {session.taskName || "Untitled task"}
+              </h1>
+            )}
             <p className="mt-1 text-sm text-zinc-400">
               Hosted by {session.organizerName}
             </p>

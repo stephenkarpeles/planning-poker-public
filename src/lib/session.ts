@@ -141,6 +141,22 @@ export async function startNewTask(
   return { session };
 }
 
+export async function renameTask(
+  sessionId: string,
+  organizerToken: string,
+  taskNameRaw: unknown,
+) {
+  const session = await getSession(sessionId);
+  if (!session) return { error: "Session not found" as const };
+  if (session.organizerToken !== organizerToken) {
+    return { error: "Only the organizer can rename the task" as const };
+  }
+
+  session.taskName = sanitizeTask(taskNameRaw);
+  await saveSession(session);
+  return { session };
+}
+
 export async function loadSession(sessionId: string) {
   return getSession(sessionId);
 }
