@@ -34,7 +34,7 @@ export function VoteBoard({
             disabled={disabled || session.revealed}
             onClick={() => onVote(value)}
             className={cn(
-              "aspect-[3/4] rounded-xl border text-2xl font-semibold tracking-tight transition duration-200",
+              "aspect-[3/4] cursor-pointer rounded-xl border text-2xl font-semibold tracking-tight transition duration-200",
               "border-white/10 bg-white/[0.03] text-zinc-100",
               "hover:border-emerald-400/40 hover:bg-emerald-400/10 hover:-translate-y-0.5",
               "disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:translate-y-0",
