@@ -10,6 +10,7 @@ import {
   saveDisplayName,
   saveOrganizerToken,
   saveParticipantId,
+  saveParticipantToken,
 } from "@/lib/client-storage";
 
 export function CreateSessionForm() {
@@ -39,6 +40,7 @@ export function CreateSessionForm() {
       saveDisplayName(data.session.organizerName);
       saveOrganizerToken(data.session.id, data.organizerToken);
       saveParticipantId(data.session.id, data.participantId);
+      saveParticipantToken(data.session.id, data.participantToken);
       router.push(`/s/${data.session.id}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong");

@@ -13,8 +13,10 @@ import {
   loadDisplayName,
   loadOrganizerToken,
   loadParticipantId,
+  loadParticipantToken,
   saveDisplayName,
   saveParticipantId,
+  saveParticipantToken,
 } from "@/lib/client-storage";
 import type { PointValue } from "@/lib/points";
 import type { PublicSession } from "@/lib/types";
@@ -26,6 +28,7 @@ type SessionRoomProps = {
 export function SessionRoom({ sessionId }: SessionRoomProps) {
   const [session, setSession] = useState<PublicSession | null>(null);
   const [participantId, setParticipantId] = useState<string | null>(null);
+  const [participantToken, setParticipantToken] = useState<string | null>(null);
   const [organizerToken, setOrganizerToken] = useState<string | null>(null);
   const [joinName, setJoinName] = useState("");
   const [shareUrl, setShareUrl] = useState("");
@@ -37,9 +40,9 @@ export function SessionRoom({ sessionId }: SessionRoomProps) {
   const [taskDraft, setTaskDraft] = useState("");
 
   const refresh = useCallback(
-    async (viewerId?: string | null) => {
-      const id = viewerId ?? participantId;
-      const query = id ? `?participantId=${encodeURIComponent(id)}` : "";
+    async (viewerToken?: string | null) => {
+      const token = viewerToken ?? participantToken;
+      const query = token ? `?token=${encodeURIComponent(token)}` : "";
       const response = await fetch(`/api/sessions/${sessionId}${query}`, {
         cache: "no-store",
       });
@@ -68,21 +71,23 @@ export function SessionRoom({ sessionId }: SessionRoomProps) {
       setNotFound(false);
       return data.session as PublicSession;
     },
-    [participantId, sessionId],
+    [participantToken, sessionId],
   );
 
   useEffect(() => {
     setShareUrl(`${window.location.origin}/s/${sessionId}`);
     setJoinName(loadDisplayName());
     const savedParticipant = loadParticipantId(sessionId);
+    const savedToken = loadParticipantToken(sessionId);
     const savedOrganizer = loadOrganizerToken(sessionId);
     setParticipantId(savedParticipant);
+    setParticipantToken(savedToken);
     setOrganizerToken(savedOrganizer);
 
     let cancelled = false;
     (async () => {
       try {
-        await refresh(savedParticipant);
+        await refresh(savedToken);
       } catch (err) {
         if (!cancelled) {
           setError(err instanceof Error ? err.message : "Failed to load");
@@ -98,12 +103,12 @@ export function SessionRoom({ sessionId }: SessionRoomProps) {
   }, [refresh, sessionId]);
 
   useEffect(() => {
-    if (!participantId) return;
+    if (!participantToken) return;
     const timer = window.setInterval(() => {
-      void refresh(participantId).catch(() => undefined);
+      void refresh(participantToken).catch(() => undefined);
     }, 1500);
     return () => window.clearInterval(timer);
-  }, [participantId, refresh]);
+  }, [participantToken, refresh]);
 
   async function handleJoin(event: React.FormEvent) {
     event.preventDefault();
@@ -121,7 +126,9 @@ export function SessionRoom({ sessionId }: SessionRoomProps) {
       }
       saveDisplayName(joinName.trim());
       saveParticipantId(sessionId, data.participantId);
+      saveParticipantToken(sessionId, data.participantToken);
       setParticipantId(data.participantId);
+      setParticipantToken(data.participantToken);
       setSession(data.session);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not join");
@@ -131,14 +138,14 @@ export function SessionRoom({ sessionId }: SessionRoomProps) {
   }
 
   async function handleVote(vote: PointValue) {
-    if (!participantId) return;
+    if (!participantToken) return;
     setBusy(true);
     setError(null);
     try {
       const response = await fetch(`/api/sessions/${sessionId}/vote`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ participantId, vote }),
+        body: JSON.stringify({ participantToken, vote }),
       });
       const data = await response.json();
       if (!response.ok) {
@@ -258,7 +265,7 @@ export function SessionRoom({ sessionId }: SessionRoomProps) {
     );
   }
 
-  if (!participantId) {
+  if (!participantToken) {
     return (
       <div className="mx-auto flex w-full max-w-md flex-col gap-8 px-4 py-16">
         <div>

@@ -1,4 +1,5 @@
 import { neon } from "@neondatabase/serverless";
+import { SESSION_TTL_MS } from "./security";
 import type { Session } from "./types";
 
 const globalStore = globalThis as typeof globalThis & {
@@ -47,18 +48,42 @@ async function ensureSchema() {
   await schemaReady;
 }
 
-export async function getSession(id: string): Promise<Session | null> {
+function isExpired(session: Session) {
+  const updated = Date.parse(session.updatedAt || session.createdAt);
+  if (!Number.isFinite(updated)) return true;
+  return Date.now() - updated > SESSION_TTL_MS;
+}
+
+export async function deleteSession(id: string): Promise<void> {
   const sql = sqlClient();
   if (!sql) {
-    return memoryMap().get(id) ?? null;
+    memoryMap().delete(id);
+    return;
+  }
+  await ensureSchema();
+  await sql`DELETE FROM planning_poker_sessions WHERE id = ${id}`;
+}
+
+export async function getSession(id: string): Promise<Session | null> {
+  const sql = sqlClient();
+  let session: Session | null = null;
+
+  if (!sql) {
+    session = memoryMap().get(id) ?? null;
+  } else {
+    await ensureSchema();
+    const rows = await sql`
+      SELECT data FROM planning_poker_sessions WHERE id = ${id} LIMIT 1
+    `;
+    session = rows[0] ? (rows[0].data as Session) : null;
   }
 
-  await ensureSchema();
-  const rows = await sql`
-    SELECT data FROM planning_poker_sessions WHERE id = ${id} LIMIT 1
-  `;
-  if (!rows[0]) return null;
-  return rows[0].data as Session;
+  if (!session) return null;
+  if (isExpired(session)) {
+    await deleteSession(id);
+    return null;
+  }
+  return session;
 }
 
 export async function saveSession(session: Session): Promise<void> {
@@ -76,6 +101,24 @@ export async function saveSession(session: Session): Promise<void> {
     VALUES (${next.id}, ${payload}::jsonb, NOW())
     ON CONFLICT (id) DO UPDATE
     SET data = EXCLUDED.data, updated_at = NOW()
+  `;
+}
+
+/** Best-effort cleanup of stale rows (called occasionally on create). */
+export async function pruneExpiredSessions(): Promise<void> {
+  const cutoff = new Date(Date.now() - SESSION_TTL_MS).toISOString();
+  const sql = sqlClient();
+  if (!sql) {
+    const map = memoryMap();
+    for (const [id, session] of map) {
+      if (isExpired(session)) map.delete(id);
+    }
+    return;
+  }
+  await ensureSchema();
+  await sql`
+    DELETE FROM planning_poker_sessions
+    WHERE updated_at < ${cutoff}::timestamptz
   `;
 }
 

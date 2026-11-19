@@ -1,23 +1,30 @@
 import { NextResponse } from "next/server";
+import { readJsonBody } from "@/lib/security";
 import { startNewTask, toPublicSession } from "@/lib/session";
-
 
 type Params = { params: Promise<{ id: string }> };
 
 export async function POST(request: Request, { params }: Params) {
   const { id } = await params;
+  const parsed = await readJsonBody<{
+    organizerToken?: string;
+    taskName?: string;
+  }>(request);
+  if (!parsed.ok) {
+    return NextResponse.json({ error: parsed.error }, { status: 400 });
+  }
+  if (!parsed.body.organizerToken) {
+    return NextResponse.json(
+      { error: "organizerToken is required" },
+      { status: 400 },
+    );
+  }
   try {
-    const body = (await request.json()) as {
-      organizerToken?: string;
-      taskName?: string;
-    };
-    if (!body.organizerToken) {
-      return NextResponse.json(
-        { error: "organizerToken is required" },
-        { status: 400 },
-      );
-    }
-    const result = await startNewTask(id, body.organizerToken, body.taskName);
+    const result = await startNewTask(
+      id,
+      parsed.body.organizerToken,
+      parsed.body.taskName,
+    );
     if ("error" in result) {
       const message = result.error ?? "Request failed";
       const status =

@@ -1,5 +1,7 @@
 const organizerKey = (sessionId: string) => `pp:organizer:${sessionId}`;
-const participantKey = (sessionId: string) => `pp:participant:${sessionId}`;
+const participantIdKey = (sessionId: string) => `pp:participant:${sessionId}`;
+const participantTokenKey = (sessionId: string) =>
+  `pp:participant-token:${sessionId}`;
 const NAME_KEY = "pp:display-name";
 
 export function saveOrganizerToken(sessionId: string, token: string) {
@@ -11,11 +13,19 @@ export function loadOrganizerToken(sessionId: string) {
 }
 
 export function saveParticipantId(sessionId: string, participantId: string) {
-  localStorage.setItem(participantKey(sessionId), participantId);
+  localStorage.setItem(participantIdKey(sessionId), participantId);
 }
 
 export function loadParticipantId(sessionId: string) {
-  return localStorage.getItem(participantKey(sessionId));
+  return localStorage.getItem(participantIdKey(sessionId));
+}
+
+export function saveParticipantToken(sessionId: string, token: string) {
+  localStorage.setItem(participantTokenKey(sessionId), token);
+}
+
+export function loadParticipantToken(sessionId: string) {
+  return localStorage.getItem(participantTokenKey(sessionId));
 }
 
 export function saveDisplayName(name: string) {

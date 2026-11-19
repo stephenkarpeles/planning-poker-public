@@ -2,6 +2,8 @@ import type { PointValue } from "./points";
 
 export type Participant = {
   id: string;
+  /** Secret proving control of this seat; never sent in public session payloads. */
+  token: string;
   name: string;
   vote: PointValue | null;
 };
