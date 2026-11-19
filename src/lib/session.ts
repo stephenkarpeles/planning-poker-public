@@ -52,7 +52,8 @@ export function toPublicSession(
     revealed: normalized.revealed,
     createdAt: normalized.createdAt,
     updatedAt: normalized.updatedAt,
-    history: normalized.history,
+    // History only after joining — share links should not leak prior tasks.
+    history: viewer ? normalized.history : [],
     participants: normalized.participants.map((participant) => {
       const isSelf = Boolean(viewer && viewer.id === participant.id);
       const showVote = normalized.revealed || isSelf;

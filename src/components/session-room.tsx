@@ -383,7 +383,6 @@ export function SessionRoom({ sessionId }: SessionRoomProps) {
             {busy ? "Joining…" : "Join session"}
           </Button>
         </form>
-        <TaskHistory history={session.history ?? []} />
       </div>
     );
   }
