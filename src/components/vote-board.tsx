@@ -152,15 +152,13 @@ export function OrganizerControls({
     .filter((v): v is PointValue => v !== null);
   const modes = mostFrequentVotes(votes);
   const consensusLabel = formatMostCommon(votes);
-  const singleMode = modes.length === 1 ? modes[0] : null;
-  const [finalPoints, setFinalPoints] = useState<PointValue | null>(singleMode);
+  const [finalPoints, setFinalPoints] = useState<PointValue | null>(null);
 
   useEffect(() => {
     if (session.revealed) {
-      const nextModes = mostFrequentVotes(votes);
-      setFinalPoints(nextModes.length === 1 ? nextModes[0] : null);
+      setFinalPoints(null);
     }
-  }, [session.revealed, session.updatedAt]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [session.revealed, session.updatedAt]);
 
   return (
     <div className="space-y-3 rounded-xl border border-white/10 bg-white/[0.02] p-4">
@@ -198,43 +196,42 @@ export function OrganizerControls({
                 {session.taskName || "Untitled task"}
               </span>
             </p>
-            {singleMode !== null && (
-              <Button
-                type="button"
-                variant="secondary"
-                disabled={busy}
-                onClick={() => setFinalPoints(singleMode)}
-                className="mt-2"
-              >
-                Use most common ({singleMode})
-              </Button>
-            )}
-            {modes.length > 1 && (
+            {consensusLabel !== null && (
               <p className="mt-2 text-xs text-zinc-500">
-                Tie — Most Common: {consensusLabel}. Pick one below.
+                {modes.length > 1 ? "Tie — " : ""}
+                Most Common: {consensusLabel}
+                {modes.length === 1 ? " (highlighted). " : ". "}
+                Click a value to choose, then Submit.
               </p>
             )}
           </div>
 
           <div className="grid grid-cols-3 gap-2 sm:grid-cols-6">
-            {POINT_OPTIONS.map((value) => (
-              <button
-                key={value}
-                type="button"
-                disabled={busy}
-                onClick={() => setFinalPoints(value)}
-                className={cn(
-                  "h-11 cursor-pointer rounded-lg border text-base font-semibold transition",
-                  "border-white/10 bg-white/[0.03] text-zinc-100",
-                  "hover:border-emerald-400/40 hover:bg-emerald-400/10",
-                  "disabled:cursor-not-allowed",
-                  finalPoints === value &&
-                    "border-emerald-400 bg-emerald-400/15 text-emerald-200",
-                )}
-              >
-                {value}
-              </button>
-            ))}
+            {POINT_OPTIONS.map((value) => {
+              const isMode = modes.includes(value);
+              const isSelected = finalPoints === value;
+              return (
+                <button
+                  key={value}
+                  type="button"
+                  disabled={busy}
+                  onClick={() => setFinalPoints(value)}
+                  className={cn(
+                    "h-11 cursor-pointer rounded-lg border text-base font-semibold transition",
+                    "border-white/10 bg-white/[0.03] text-zinc-100",
+                    "hover:border-emerald-400/40 hover:bg-emerald-400/10",
+                    "disabled:cursor-not-allowed",
+                    isMode &&
+                      !isSelected &&
+                      "border-emerald-400/45 bg-emerald-400/8 text-emerald-200/90 ring-1 ring-emerald-400/25",
+                    isSelected &&
+                      "border-emerald-400 bg-emerald-400/20 text-emerald-100 ring-2 ring-emerald-400/50",
+                  )}
+                >
+                  {value}
+                </button>
+              );
+            })}
           </div>
 
           <Button
