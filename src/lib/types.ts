@@ -8,6 +8,14 @@ export type Participant = {
   vote: PointValue | null;
 };
 
+export type TaskHistoryEntry = {
+  id: string;
+  name: string;
+  finalPoints: PointValue;
+  votes: { name: string; vote: PointValue | null }[];
+  decidedAt: string;
+};
+
 export type Session = {
   id: string;
   organizerName: string;
@@ -16,6 +24,7 @@ export type Session = {
   taskName: string;
   revealed: boolean;
   participants: Participant[];
+  history: TaskHistoryEntry[];
   createdAt: string;
   updatedAt: string;
 };
@@ -34,6 +43,7 @@ export type PublicSession = {
   taskName: string;
   revealed: boolean;
   participants: PublicParticipant[];
+  history: TaskHistoryEntry[];
   createdAt: string;
   updatedAt: string;
 };

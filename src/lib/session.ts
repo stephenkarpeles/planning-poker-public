@@ -7,6 +7,7 @@ import type { Participant, PublicSession, Session } from "./types";
 const MAX_NAME = 40;
 const MAX_TASK = 120;
 const MAX_PARTICIPANTS = 40;
+const MAX_HISTORY = 100;
 
 export function sanitizeName(raw: unknown, fallback = "Guest") {
   if (typeof raw !== "string") return fallback;
@@ -30,22 +31,31 @@ function findByToken(session: Session, token: string | null | undefined) {
   );
 }
 
+function withDefaults(session: Session): Session {
+  return {
+    ...session,
+    history: Array.isArray(session.history) ? session.history : [],
+  };
+}
+
 export function toPublicSession(
   session: Session,
   viewerToken?: string | null,
 ): PublicSession {
-  const viewer = findByToken(session, viewerToken);
+  const normalized = withDefaults(session);
+  const viewer = findByToken(normalized, viewerToken);
   return {
-    id: session.id,
-    organizerName: session.organizerName,
-    organizerParticipantId: session.organizerParticipantId,
-    taskName: session.taskName,
-    revealed: session.revealed,
-    createdAt: session.createdAt,
-    updatedAt: session.updatedAt,
-    participants: session.participants.map((participant) => {
+    id: normalized.id,
+    organizerName: normalized.organizerName,
+    organizerParticipantId: normalized.organizerParticipantId,
+    taskName: normalized.taskName,
+    revealed: normalized.revealed,
+    createdAt: normalized.createdAt,
+    updatedAt: normalized.updatedAt,
+    history: normalized.history,
+    participants: normalized.participants.map((participant) => {
       const isSelf = Boolean(viewer && viewer.id === participant.id);
-      const showVote = session.revealed || isSelf;
+      const showVote = normalized.revealed || isSelf;
       return {
         id: participant.id,
         name: participant.name,
@@ -66,7 +76,6 @@ function newParticipant(name: string): Participant {
 }
 
 export async function createSession(organizerNameRaw: unknown) {
-  // Opportunistic cleanup so abandoned rooms do not grow forever.
   if (Math.random() < 0.2) {
     void pruneExpiredSessions().catch(() => undefined);
   }
@@ -82,6 +91,7 @@ export async function createSession(organizerNameRaw: unknown) {
     taskName: "",
     revealed: false,
     participants: [organizer],
+    history: [],
     createdAt: now,
     updatedAt: now,
   };
@@ -90,8 +100,9 @@ export async function createSession(organizerNameRaw: unknown) {
 }
 
 export async function joinSession(sessionId: string, nameRaw: unknown) {
-  const session = await getSession(sessionId);
-  if (!session) return { error: "Session not found" as const };
+  const raw = await getSession(sessionId);
+  if (!raw) return { error: "Session not found" as const };
+  const session = withDefaults(raw);
 
   if (session.participants.length >= MAX_PARTICIPANTS) {
     return { error: "Session is full" as const };
@@ -115,8 +126,9 @@ export async function castVote(
   if (!isPointValue(voteRaw)) {
     return { error: "Invalid point value" as const };
   }
-  const session = await getSession(sessionId);
-  if (!session) return { error: "Session not found" as const };
+  const raw = await getSession(sessionId);
+  if (!raw) return { error: "Session not found" as const };
+  const session = withDefaults(raw);
   if (session.revealed) {
     return { error: "Votes are locked until the next task" as const };
   }
@@ -130,8 +142,9 @@ export async function castVote(
 }
 
 export async function revealSession(sessionId: string, organizerToken: string) {
-  const session = await getSession(sessionId);
-  if (!session) return { error: "Session not found" as const };
+  const raw = await getSession(sessionId);
+  if (!raw) return { error: "Session not found" as const };
+  const session = withDefaults(raw);
   if (!safeEqual(session.organizerToken, organizerToken)) {
     return { error: "Only the organizer can reveal" as const };
   }
@@ -140,15 +153,69 @@ export async function revealSession(sessionId: string, organizerToken: string) {
   return { session };
 }
 
+/**
+ * Save the current revealed round into history with a final point value,
+ * then clear votes and optionally start the next task name.
+ */
+export async function finalizeAndStartNext(
+  sessionId: string,
+  organizerToken: string,
+  finalPointsRaw: unknown,
+  nextTaskNameRaw: unknown,
+) {
+  const raw = await getSession(sessionId);
+  if (!raw) return { error: "Session not found" as const };
+  const session = withDefaults(raw);
+  if (!safeEqual(session.organizerToken, organizerToken)) {
+    return { error: "Only the organizer can finalize" as const };
+  }
+  if (!session.revealed) {
+    return { error: "Reveal votes before saving the final points" as const };
+  }
+  if (!isPointValue(finalPointsRaw)) {
+    return { error: "Pick a final point value" as const };
+  }
+
+  session.history = [
+    {
+      id: nanoid(10),
+      name: session.taskName.trim() || "Untitled task",
+      finalPoints: finalPointsRaw,
+      votes: session.participants.map((participant) => ({
+        name: participant.name,
+        vote: participant.vote,
+      })),
+      decidedAt: new Date().toISOString(),
+    },
+    ...session.history,
+  ].slice(0, MAX_HISTORY);
+
+  session.taskName = sanitizeTask(nextTaskNameRaw);
+  session.revealed = false;
+  session.participants = session.participants.map((participant) => ({
+    ...participant,
+    vote: null,
+  }));
+  await saveSession(session);
+  return { session };
+}
+
+/** Abandon the current unrevealed round and start a fresh task (nothing saved). */
 export async function startNewTask(
   sessionId: string,
   organizerToken: string,
   taskNameRaw: unknown,
 ) {
-  const session = await getSession(sessionId);
-  if (!session) return { error: "Session not found" as const };
+  const raw = await getSession(sessionId);
+  if (!raw) return { error: "Session not found" as const };
+  const session = withDefaults(raw);
   if (!safeEqual(session.organizerToken, organizerToken)) {
     return { error: "Only the organizer can start a new task" as const };
+  }
+  if (session.revealed) {
+    return {
+      error: "Pick final points to save this task before starting the next one",
+    } as const;
   }
 
   session.taskName = sanitizeTask(taskNameRaw);
@@ -166,8 +233,9 @@ export async function renameTask(
   organizerToken: string,
   taskNameRaw: unknown,
 ) {
-  const session = await getSession(sessionId);
-  if (!session) return { error: "Session not found" as const };
+  const raw = await getSession(sessionId);
+  if (!raw) return { error: "Session not found" as const };
+  const session = withDefaults(raw);
   if (!safeEqual(session.organizerToken, organizerToken)) {
     return { error: "Only the organizer can rename the task" as const };
   }
@@ -178,12 +246,13 @@ export async function renameTask(
 }
 
 export async function loadSession(sessionId: string) {
-  return getSession(sessionId);
+  const session = await getSession(sessionId);
+  return session ? withDefaults(session) : null;
 }
 
 export function viewerIdFromToken(
   session: Session,
   participantToken?: string | null,
 ) {
-  return findByToken(session, participantToken)?.id ?? null;
+  return findByToken(withDefaults(session), participantToken)?.id ?? null;
 }

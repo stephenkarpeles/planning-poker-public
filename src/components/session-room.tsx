@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import {
   OrganizerControls,
   ParticipantList,
+  TaskHistory,
   VoteBoard,
 } from "@/components/vote-board";
 import {
@@ -184,7 +185,7 @@ export function SessionRoom({ sessionId }: SessionRoomProps) {
     }
   }
 
-  async function handleNewTask(taskName: string) {
+  async function handleSkipRound(taskName: string) {
     if (!organizerToken) return;
     setBusy(true);
     setError(null);
@@ -200,8 +201,39 @@ export function SessionRoom({ sessionId }: SessionRoomProps) {
       }
       setSession(data.session);
       setTaskDraft(data.session.taskName ?? "");
+      setEditingTitle(false);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not start new task");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleFinalize(finalPoints: PointValue, nextTaskName: string) {
+    if (!organizerToken) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const response = await fetch(`/api/sessions/${sessionId}/finalize`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          organizerToken,
+          finalPoints,
+          nextTaskName,
+        }),
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error || "Could not save final points");
+      }
+      setSession(data.session);
+      setTaskDraft(data.session.taskName ?? "");
+      setEditingTitle(false);
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : "Could not save final points",
+      );
     } finally {
       setBusy(false);
     }
@@ -455,8 +487,8 @@ export function SessionRoom({ sessionId }: SessionRoomProps) {
         />
         {session.revealed && (
           <p className="text-sm text-zinc-400">
-            Votes are visible. Organizer can start a new task when you&apos;re
-            ready.
+            Votes are visible. Organizer picks the final points, then saves to
+            history and starts the next task.
           </p>
         )}
       </section>
@@ -468,9 +500,12 @@ export function SessionRoom({ sessionId }: SessionRoomProps) {
           session={session}
           busy={busy}
           onReveal={handleReveal}
-          onNewTask={handleNewTask}
+          onFinalize={handleFinalize}
+          onSkipRound={handleSkipRound}
         />
       )}
+
+      <TaskHistory history={session.history ?? []} />
 
       {error && <p className="text-sm text-red-400">{error}</p>}
     </div>
