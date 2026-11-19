@@ -45,6 +45,15 @@ export function SessionRoom({ sessionId }: SessionRoomProps) {
   const [topNextTaskName, setTopNextTaskName] = useState("");
   const titleInputRef = useRef<HTMLInputElement>(null);
 
+  const isOrganizer = Boolean(organizerToken);
+  const topConsensus = useMemo(() => {
+    const votes =
+      session?.participants
+        .map((p) => p.vote)
+        .filter((v): v is PointValue => v !== null) ?? [];
+    return mostFrequentVote(votes);
+  }, [session?.participants]);
+
   const refresh = useCallback(
     async (viewerToken?: string | null) => {
       const token = viewerToken ?? participantToken;
@@ -392,14 +401,6 @@ export function SessionRoom({ sessionId }: SessionRoomProps) {
       </div>
     );
   }
-
-  const isOrganizer = Boolean(organizerToken);
-  const topConsensus = useMemo(() => {
-    const votes = session.participants
-      .map((p) => p.vote)
-      .filter((v): v is PointValue => v !== null);
-    return mostFrequentVote(votes);
-  }, [session.participants]);
 
   return (
     <div className="mx-auto flex w-full max-w-2xl flex-col gap-8 px-4 py-10 sm:py-14">
