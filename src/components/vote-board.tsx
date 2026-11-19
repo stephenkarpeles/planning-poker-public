@@ -50,6 +50,26 @@ export function VoteBoard({
   );
 }
 
+function mostFrequentVote(votes: PointValue[]): PointValue | null {
+  if (votes.length === 0) return null;
+  const counts = new Map<PointValue, number>();
+  for (const vote of votes) {
+    counts.set(vote, (counts.get(vote) ?? 0) + 1);
+  }
+  let best: PointValue | null = null;
+  let bestCount = -1;
+  for (const [vote, count] of counts) {
+    if (
+      count > bestCount ||
+      (count === bestCount && best !== null && vote < best)
+    ) {
+      best = vote;
+      bestCount = count;
+    }
+  }
+  return best;
+}
+
 type ParticipantListProps = {
   session: PublicSession;
   myParticipantId: string | null;
@@ -64,10 +84,7 @@ export function ParticipantList({
         .map((p) => p.vote)
         .filter((v): v is PointValue => v !== null)
     : [];
-  const average =
-    votes.length > 0
-      ? Math.round((votes.reduce((a, b) => a + b, 0) / votes.length) * 10) / 10
-      : null;
+  const consensus = mostFrequentVote(votes);
 
   return (
     <div className="space-y-4">
@@ -81,9 +98,10 @@ export function ParticipantList({
             {session.participants.length} voted
           </p>
         </div>
-        {session.revealed && average !== null && (
+        {session.revealed && consensus !== null && (
           <p className="animate-in fade-in text-sm text-zinc-300">
-            Avg <span className="font-semibold text-emerald-300">{average}</span>
+            Most common{" "}
+            <span className="font-semibold text-emerald-300">{consensus}</span>
           </p>
         )}
       </div>

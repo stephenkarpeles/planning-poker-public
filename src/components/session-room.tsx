@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { Check, Pencil, X } from "lucide-react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -38,6 +39,8 @@ export function SessionRoom({ sessionId }: SessionRoomProps) {
   const [error, setError] = useState<string | null>(null);
   const [notFound, setNotFound] = useState(false);
   const [taskDraft, setTaskDraft] = useState("");
+  const [editingTitle, setEditingTitle] = useState(false);
+  const titleInputRef = useRef<HTMLInputElement>(null);
 
   const refresh = useCallback(
     async (viewerToken?: string | null) => {
@@ -57,12 +60,12 @@ export function SessionRoom({ sessionId }: SessionRoomProps) {
       }
       setSession((prev) => {
         const next = data.session as PublicSession;
-        const editingTitle =
-          typeof document !== "undefined" &&
-          document.activeElement?.getAttribute("aria-label") === "Task name";
-        if (!editingTitle && prev?.taskName !== next.taskName) {
-          setTaskDraft(next.taskName ?? "");
-        }
+        setEditingTitle((isEditing) => {
+          if (!isEditing && prev?.taskName !== next.taskName) {
+            setTaskDraft(next.taskName ?? "");
+          }
+          return isEditing;
+        });
         if (!prev) {
           setTaskDraft(next.taskName ?? "");
         }
@@ -204,11 +207,31 @@ export function SessionRoom({ sessionId }: SessionRoomProps) {
     }
   }
 
+  useEffect(() => {
+    if (editingTitle) {
+      titleInputRef.current?.focus();
+      titleInputRef.current?.select();
+    }
+  }, [editingTitle]);
+
+  function startEditingTitle() {
+    setTaskDraft(session?.taskName ?? "");
+    setEditingTitle(true);
+  }
+
+  function cancelEditingTitle() {
+    setTaskDraft(session?.taskName ?? "");
+    setEditingTitle(false);
+  }
+
   async function saveTaskTitle() {
     if (!organizerToken || !session) return;
     const next = taskDraft.trim();
     const current = session.taskName.trim();
-    if (next === current) return;
+    if (next === current) {
+      setEditingTitle(false);
+      return;
+    }
     setBusy(true);
     setError(null);
     try {
@@ -223,6 +246,7 @@ export function SessionRoom({ sessionId }: SessionRoomProps) {
       }
       setSession(data.session);
       setTaskDraft(data.session.taskName ?? "");
+      setEditingTitle(false);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not rename task");
       setTaskDraft(session.taskName);
@@ -318,25 +342,67 @@ export function SessionRoom({ sessionId }: SessionRoomProps) {
               Planning Poker
             </p>
             {isOrganizer ? (
-              <div className="mt-2 w-full max-w-xl space-y-1.5">
-                <Label htmlFor="task-name" className="text-xs text-zinc-500">
-                  Task name
-                </Label>
-                <Input
-                  id="task-name"
-                  value={taskDraft}
-                  onChange={(e) => setTaskDraft(e.target.value)}
-                  onBlur={() => void saveTaskTitle()}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") {
-                      e.currentTarget.blur();
-                    }
-                  }}
-                  placeholder="Name this task…"
-                  maxLength={120}
-                  aria-label="Task name"
-                  className="h-12 cursor-text border-white/15 bg-white/[0.04] text-xl font-semibold tracking-tight text-zinc-50 placeholder:font-normal placeholder:text-zinc-500"
-                />
+              <div className="mt-2 w-full max-w-xl">
+                {editingTitle ? (
+                  <div className="flex items-center gap-2">
+                    <Input
+                      ref={titleInputRef}
+                      id="task-name"
+                      value={taskDraft}
+                      onChange={(e) => setTaskDraft(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          void saveTaskTitle();
+                        }
+                        if (e.key === "Escape") {
+                          e.preventDefault();
+                          cancelEditingTitle();
+                        }
+                      }}
+                      placeholder="Untitled task"
+                      maxLength={120}
+                      aria-label="Task name"
+                      className="h-12 flex-1 border-white/15 bg-white/[0.04] px-3 text-3xl font-semibold tracking-tight text-zinc-50 placeholder:font-semibold placeholder:text-zinc-500 md:text-3xl"
+                    />
+                    <Button
+                      type="button"
+                      size="icon-lg"
+                      disabled={busy}
+                      onClick={() => void saveTaskTitle()}
+                      aria-label="Save task name"
+                      className="bg-emerald-400 text-zinc-950 hover:bg-emerald-300"
+                    >
+                      <Check />
+                    </Button>
+                    <Button
+                      type="button"
+                      size="icon-lg"
+                      variant="secondary"
+                      disabled={busy}
+                      onClick={cancelEditingTitle}
+                      aria-label="Cancel editing"
+                    >
+                      <X />
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="flex items-start gap-2">
+                    <h1 className="min-w-0 flex-1 text-3xl font-semibold tracking-tight text-zinc-50">
+                      {session.taskName || "Untitled task"}
+                    </h1>
+                    <Button
+                      type="button"
+                      size="icon"
+                      variant="ghost"
+                      onClick={startEditingTitle}
+                      aria-label="Edit task name"
+                      className="mt-1 shrink-0 text-zinc-400 hover:text-zinc-100"
+                    >
+                      <Pencil />
+                    </Button>
+                  </div>
+                )}
               </div>
             ) : (
               <h1 className="mt-2 text-3xl font-semibold tracking-tight text-zinc-50">
