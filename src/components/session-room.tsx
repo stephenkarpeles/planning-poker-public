@@ -1,7 +1,7 @@
 "use client";
 
 import { Check, Pencil, X } from "lucide-react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -11,6 +11,7 @@ import {
   TaskHistory,
   VoteBoard,
 } from "@/components/vote-board";
+import { mostFrequentVote } from "@/lib/consensus";
 import {
   loadDisplayName,
   loadOrganizerToken,
@@ -41,6 +42,7 @@ export function SessionRoom({ sessionId }: SessionRoomProps) {
   const [notFound, setNotFound] = useState(false);
   const [taskDraft, setTaskDraft] = useState("");
   const [editingTitle, setEditingTitle] = useState(false);
+  const [topNextTaskName, setTopNextTaskName] = useState("");
   const titleInputRef = useRef<HTMLInputElement>(null);
 
   const refresh = useCallback(
@@ -222,6 +224,7 @@ export function SessionRoom({ sessionId }: SessionRoomProps) {
       }
       setSession(data.session);
       setTaskDraft(data.session.taskName ?? "");
+      setTopNextTaskName("");
       setEditingTitle(false);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not start new task");
@@ -250,6 +253,7 @@ export function SessionRoom({ sessionId }: SessionRoomProps) {
       }
       setSession(data.session);
       setTaskDraft(data.session.taskName ?? "");
+      setTopNextTaskName("");
       setEditingTitle(false);
     } catch (err) {
       setError(
@@ -390,6 +394,12 @@ export function SessionRoom({ sessionId }: SessionRoomProps) {
   }
 
   const isOrganizer = Boolean(organizerToken);
+  const topConsensus = useMemo(() => {
+    const votes = session.participants
+      .map((p) => p.vote)
+      .filter((v): v is PointValue => v !== null);
+    return mostFrequentVote(votes);
+  }, [session.participants]);
 
   return (
     <div className="mx-auto flex w-full max-w-2xl flex-col gap-8 px-4 py-10 sm:py-14">
@@ -483,20 +493,62 @@ export function SessionRoom({ sessionId }: SessionRoomProps) {
         </div>
 
         {isOrganizer && (
-          <div className="flex flex-col gap-2 rounded-xl border border-white/10 bg-white/[0.02] p-3 sm:flex-row sm:items-center">
-            <Input
-              readOnly
-              value={shareUrl}
-              className="border-white/10 bg-transparent text-sm text-zinc-300"
-            />
-            <Button
-              type="button"
-              variant="secondary"
-              onClick={copyLink}
-              className="shrink-0"
-            >
-              {copied ? "Copied" : "Copy link"}
-            </Button>
+          <div className="space-y-2">
+            <div className="flex flex-col gap-2 rounded-xl border border-white/10 bg-white/[0.02] p-3 sm:flex-row sm:items-center">
+              <Input
+                readOnly
+                value={shareUrl}
+                className="border-white/10 bg-transparent text-sm text-zinc-300"
+              />
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={copyLink}
+                className="shrink-0"
+              >
+                {copied ? "Copied" : "Copy link"}
+              </Button>
+            </div>
+            <div className="flex flex-col gap-2 rounded-xl border border-white/10 bg-white/[0.02] p-3 sm:flex-row sm:items-center">
+              <Input
+                value={topNextTaskName}
+                onChange={(e) => setTopNextTaskName(e.target.value)}
+                placeholder={
+                  session.revealed
+                    ? "Next task name (optional)"
+                    : "New task name (optional)"
+                }
+                maxLength={120}
+                className="border-white/10 bg-transparent"
+              />
+              <Button
+                type="button"
+                disabled={busy || (session.revealed && topConsensus === null)}
+                onClick={() => {
+                  if (session.revealed) {
+                    if (topConsensus === null) {
+                      setError("Reveal has no votes to lock yet");
+                      return;
+                    }
+                    void handleFinalize(topConsensus, topNextTaskName);
+                    return;
+                  }
+                  void handleSkipRound(topNextTaskName);
+                }}
+                className="shrink-0 bg-emerald-400 text-zinc-950 hover:bg-emerald-300"
+              >
+                {session.revealed
+                  ? `Save ${topConsensus ?? "—"} & next`
+                  : "New task"}
+              </Button>
+            </div>
+            {session.revealed && (
+              <p className="text-xs text-zinc-500">
+                Top button locks the most common vote (
+                {topConsensus ?? "none"}) and starts the next task. Use the
+                controls below to pick a different final value.
+              </p>
+            )}
           </div>
         )}
       </header>
