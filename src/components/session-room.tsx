@@ -311,21 +311,26 @@ export function SessionRoom({ sessionId }: SessionRoomProps) {
               Planning Poker
             </p>
             {isOrganizer ? (
-              <Input
-                value={taskDraft}
-                onChange={(e) => setTaskDraft(e.target.value)}
-                onBlur={() => void saveTaskTitle()}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") {
-                    e.currentTarget.blur();
-                  }
-                }}
-                placeholder="Untitled task"
-                maxLength={120}
-                disabled={busy}
-                aria-label="Task name"
-                className="mt-2 h-auto border-transparent bg-transparent px-0 text-3xl font-semibold tracking-tight text-zinc-50 shadow-none placeholder:text-zinc-500 focus-visible:border-emerald-400/40 focus-visible:ring-emerald-400/20"
-              />
+              <div className="mt-2 w-full max-w-xl space-y-1.5">
+                <Label htmlFor="task-name" className="text-xs text-zinc-500">
+                  Task name
+                </Label>
+                <Input
+                  id="task-name"
+                  value={taskDraft}
+                  onChange={(e) => setTaskDraft(e.target.value)}
+                  onBlur={() => void saveTaskTitle()}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.currentTarget.blur();
+                    }
+                  }}
+                  placeholder="Name this task…"
+                  maxLength={120}
+                  aria-label="Task name"
+                  className="h-12 cursor-text border-white/15 bg-white/[0.04] text-xl font-semibold tracking-tight text-zinc-50 placeholder:font-normal placeholder:text-zinc-500"
+                />
+              </div>
             ) : (
               <h1 className="mt-2 text-3xl font-semibold tracking-tight text-zinc-50">
                 {session.taskName || "Untitled task"}
