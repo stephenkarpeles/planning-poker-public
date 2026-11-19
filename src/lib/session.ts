@@ -153,6 +153,18 @@ export async function revealSession(sessionId: string, organizerToken: string) {
   return { session };
 }
 
+export async function hideVotes(sessionId: string, organizerToken: string) {
+  const raw = await getSession(sessionId);
+  if (!raw) return { error: "Session not found" as const };
+  const session = withDefaults(raw);
+  if (!safeEqual(session.organizerToken, organizerToken)) {
+    return { error: "Only the organizer can hide votes" as const };
+  }
+  session.revealed = false;
+  await saveSession(session);
+  return { session };
+}
+
 /**
  * Save the current revealed round into history with a final point value,
  * then clear votes and optionally start the next task name.

@@ -185,6 +185,28 @@ export function SessionRoom({ sessionId }: SessionRoomProps) {
     }
   }
 
+  async function handleHideVotes() {
+    if (!organizerToken) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const response = await fetch(`/api/sessions/${sessionId}/hide`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ organizerToken }),
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error || "Could not hide votes");
+      }
+      setSession(data.session);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not hide votes");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function handleSkipRound(taskName: string) {
     if (!organizerToken) return;
     setBusy(true);
@@ -500,6 +522,7 @@ export function SessionRoom({ sessionId }: SessionRoomProps) {
           session={session}
           busy={busy}
           onReveal={handleReveal}
+          onHideVotes={handleHideVotes}
           onFinalize={handleFinalize}
           onSkipRound={handleSkipRound}
         />

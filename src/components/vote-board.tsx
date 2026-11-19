@@ -135,6 +135,7 @@ type OrganizerControlsProps = {
   session: PublicSession;
   busy?: boolean;
   onReveal: () => void;
+  onHideVotes: () => void;
   onFinalize: (finalPoints: PointValue, nextTaskName: string) => void;
   onSkipRound: (taskName: string) => void;
 };
@@ -143,6 +144,7 @@ export function OrganizerControls({
   session,
   busy,
   onReveal,
+  onHideVotes,
   onFinalize,
   onSkipRound,
 }: OrganizerControlsProps) {
@@ -198,6 +200,15 @@ export function OrganizerControls({
         </>
       ) : (
         <div className="space-y-4">
+          <Button
+            type="button"
+            variant="secondary"
+            disabled={busy}
+            onClick={onHideVotes}
+            className="w-full"
+          >
+            Hide votes
+          </Button>
           <div>
             <p className="text-sm text-zinc-300">
               Pick the final points for{" "}
